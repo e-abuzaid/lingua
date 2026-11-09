@@ -35,6 +35,27 @@
 }
 
 @layer utilities {
+  /* Font Family utilities to ensure reliable resolution on both Android and iOS */
+  .font-poppins {
+    font-family: Poppins-Regular;
+  }
+
+  .font-poppins-regular {
+    font-family: Poppins-Regular;
+  }
+
+  .font-poppins-medium {
+    font-family: Poppins-Medium;
+  }
+
+  .font-poppins-semibold {
+    font-family: Poppins-SemiBold;
+  }
+
+  .font-poppins-bold {
+    font-family: Poppins-Bold;
+  }
+
   /* Typography BEM-style utility classes as per design theme */
   .typography-h1 {
     font-family: Poppins-Bold;
