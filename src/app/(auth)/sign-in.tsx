@@ -1,8 +1,11 @@
 import { VerificationModal } from "@/components/VerificationModal";
 import { images } from "@/constants/images";
-import { router } from "expo-router";
+import { useAuth, useSignIn, useSSO } from "@clerk/expo";
+import { Redirect, router } from "expo-router";
 import { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -15,16 +18,157 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SignInScreen() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { signIn } = useSignIn();
+  const { startSSOFlow } = useSSO();
+
   const [email, setEmail] = useState("");
   const [isVerificationVisible, setIsVerificationVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
 
-  const handleSignIn = () => {
-    setIsVerificationVisible(true);
+  if (!isLoaded) {
+    return null;
+  }
+
+  if (isSignedIn) {
+    return <Redirect href="/" />;
+  }
+
+  const handleSignIn = async () => {
+    if (!email.trim()) {
+      Alert.alert("Required Field", "Please enter your email address.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await signIn.emailCode.sendCode({
+        emailAddress: email.trim(),
+      });
+
+      if (error) {
+        if (error.code === "form_identifier_not_found") {
+          Alert.alert(
+            "Account Not Found",
+            "No account was found with this email. Please create an account first."
+          );
+        } else {
+          Alert.alert(
+            "Sign In Failed",
+            error.longMessage ||
+              error.message ||
+              "Unable to sign in. Please try again."
+          );
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(false);
+      setIsVerificationVisible(true);
+    } catch (err: any) {
+      setIsLoading(false);
+      Alert.alert(
+        "Sign In Error",
+        err?.message || "An unexpected error occurred during sign in."
+      );
+    }
+  };
+
+  const handleVerifyCode = async (code: string) => {
+    try {
+      const { error } = await signIn.emailCode.verifyCode({ code });
+      if (error) {
+        return {
+          success: false,
+          error:
+            error.longMessage ||
+            error.message ||
+            "Invalid verification code.",
+        };
+      }
+
+      if (signIn.status === "complete") {
+        const { error: finalizeError } = await signIn.finalize();
+        if (finalizeError) {
+          return {
+            success: false,
+            error:
+              finalizeError.longMessage ||
+              finalizeError.message ||
+              "Failed to complete sign in.",
+          };
+        }
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Verification failed.",
+      };
+    }
+  };
+
+  const handleResendCode = async () => {
+    try {
+      const { error } = await signIn.emailCode.sendCode({
+        emailAddress: email.trim(),
+      });
+      if (error) {
+        return {
+          success: false,
+          error:
+            error.longMessage ||
+            error.message ||
+            "Failed to resend code.",
+        };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Failed to resend code.",
+      };
+    }
   };
 
   const handleVerifySuccess = () => {
     setIsVerificationVisible(false);
     router.replace("/");
+  };
+
+  const handleSocialAuth = async (
+    strategy: "oauth_google" | "oauth_facebook" | "oauth_apple"
+  ) => {
+    if (socialLoading || isLoading) return;
+    setSocialLoading(strategy);
+    try {
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy,
+      });
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+        router.replace("/");
+      }
+    } catch (err: any) {
+      if (
+        err?.code === "SIGN_IN_CANCELLED" ||
+        err?.message?.includes("cancelled") ||
+        err?.message?.includes("dismissed")
+      ) {
+        // User cancelled the auth session; no alert needed
+        return;
+      }
+      Alert.alert(
+        "Social Sign In",
+        err?.message || "Failed to sign in with social provider."
+      );
+    } finally {
+      setSocialLoading(null);
+    }
   };
 
   return (
@@ -99,6 +243,7 @@ export default function SignInScreen() {
                   className="font-poppins-medium text-base text-neutral-text-primary pt-0.5 pb-0"
                   placeholder="Enter your email"
                   placeholderTextColor="#9CA3AF"
+                  editable={!isLoading}
                 />
               </View>
             </View>
@@ -107,6 +252,7 @@ export default function SignInScreen() {
             <TouchableOpacity
               onPress={handleSignIn}
               activeOpacity={0.88}
+              disabled={isLoading}
               className="mt-5 w-full items-center justify-center rounded-2xl bg-primary-lingua-purple py-4 shadow-md"
               style={{
                 shadowColor: "#6C4EF5",
@@ -114,11 +260,16 @@ export default function SignInScreen() {
                 shadowOpacity: 0.25,
                 shadowRadius: 8,
                 elevation: 3,
+                opacity: isLoading ? 0.7 : 1,
               }}
             >
-              <Text className="font-poppins-semibold text-lg text-white">
-                Log In
-              </Text>
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text className="font-poppins-semibold text-lg text-white">
+                  Log In
+                </Text>
+              )}
             </TouchableOpacity>
 
             {/* Divider "or continue with" */}
@@ -135,40 +286,64 @@ export default function SignInScreen() {
               {/* Google */}
               <TouchableOpacity
                 activeOpacity={0.8}
+                onPress={() => handleSocialAuth("oauth_google")}
+                disabled={Boolean(socialLoading) || isLoading}
                 className="w-full flex-row items-center justify-center rounded-2xl border border-neutral-border bg-white py-3.5 px-4"
               >
-                <View className="mr-3 h-5 w-5 items-center justify-center rounded-full">
-                  <Text className="text-base font-bold text-[#EA4335]">G</Text>
-                </View>
-                <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
-                  Continue with Google
-                </Text>
+                {socialLoading === "oauth_google" ? (
+                  <ActivityIndicator size="small" color="#6C4EF5" />
+                ) : (
+                  <>
+                    <View className="mr-3 h-5 w-5 items-center justify-center rounded-full">
+                      <Text className="text-base font-bold text-[#EA4335]">G</Text>
+                    </View>
+                    <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
+                      Continue with Google
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               {/* Facebook */}
               <TouchableOpacity
                 activeOpacity={0.8}
+                onPress={() => handleSocialAuth("oauth_facebook")}
+                disabled={Boolean(socialLoading) || isLoading}
                 className="w-full flex-row items-center justify-center rounded-2xl border border-neutral-border bg-white py-3.5 px-4"
               >
-                <View className="mr-3 h-5 w-5 items-center justify-center rounded-full bg-[#1877F2]">
-                  <Text className="text-xs font-bold text-white">f</Text>
-                </View>
-                <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
-                  Continue with Facebook
-                </Text>
+                {socialLoading === "oauth_facebook" ? (
+                  <ActivityIndicator size="small" color="#6C4EF5" />
+                ) : (
+                  <>
+                    <View className="mr-3 h-5 w-5 items-center justify-center rounded-full bg-[#1877F2]">
+                      <Text className="text-xs font-bold text-white">f</Text>
+                    </View>
+                    <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
+                      Continue with Facebook
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               {/* Apple */}
               <TouchableOpacity
                 activeOpacity={0.8}
+                onPress={() => handleSocialAuth("oauth_apple")}
+                disabled={Boolean(socialLoading) || isLoading}
                 className="w-full flex-row items-center justify-center rounded-2xl border border-neutral-border bg-white py-3.5 px-4"
               >
-                <View className="mr-3 h-5 w-5 items-center justify-center">
-                  <Text className="text-base text-black"></Text>
-                </View>
-                <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
-                  Continue with Apple
-                </Text>
+                {socialLoading === "oauth_apple" ? (
+                  <ActivityIndicator size="small" color="#6C4EF5" />
+                ) : (
+                  <>
+                    <View className="mr-3 h-5 w-5 items-center justify-center">
+                      <Text className="text-base text-black"></Text>
+                    </View>
+                    <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
+                      Continue with Apple
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -196,6 +371,8 @@ export default function SignInScreen() {
         onClose={() => setIsVerificationVisible(false)}
         onVerifySuccess={handleVerifySuccess}
         email={email}
+        onVerifyCode={handleVerifyCode}
+        onResendCode={handleResendCode}
       />
     </SafeAreaView>
   );
