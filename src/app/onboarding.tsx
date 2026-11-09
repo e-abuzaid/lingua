@@ -1,10 +1,11 @@
 import { images } from "@/constants/images";
+import { router } from "expo-router";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function OnboardingScreen() {
   const handleGetStarted = () => {
-    // Navigation / action placeholder for onboarding completion
+    router.push("/(auth)/sign-up");
   };
 
   return (

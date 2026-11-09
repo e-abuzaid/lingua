@@ -19,7 +19,7 @@ export default function Index() {
           </Text>
         </View>
 
-        {/* Navigation Link to Onboarding */}
+        {/* Navigation Links */}
         <View className="gap-3">
           <Link href="/onboarding" asChild>
             <TouchableOpacity
@@ -43,6 +43,48 @@ export default function Index() {
                   borderTopWidth: 2,
                   borderRightWidth: 2,
                   borderColor: "#FFFFFF",
+                  transform: [{ rotate: "45deg" }],
+                }}
+              />
+            </TouchableOpacity>
+          </Link>
+
+          <Link href="/(auth)/sign-up" asChild>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              className="flex-row items-center justify-between rounded-2xl border border-neutral-border bg-neutral-surface px-5 py-4"
+            >
+              <Text className="font-poppins-semibold text-base text-neutral-text-primary">
+                Open Sign Up Screen
+              </Text>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderTopWidth: 2,
+                  borderRightWidth: 2,
+                  borderColor: "#0D132B",
+                  transform: [{ rotate: "45deg" }],
+                }}
+              />
+            </TouchableOpacity>
+          </Link>
+
+          <Link href="/(auth)/sign-in" asChild>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              className="flex-row items-center justify-between rounded-2xl border border-neutral-border bg-neutral-surface px-5 py-4"
+            >
+              <Text className="font-poppins-semibold text-base text-neutral-text-primary">
+                Open Sign In Screen
+              </Text>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderTopWidth: 2,
+                  borderRightWidth: 2,
+                  borderColor: "#0D132B",
                   transform: [{ rotate: "45deg" }],
                 }}
               />
