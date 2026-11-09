@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -16,6 +18,8 @@ interface VerificationModalProps {
   onClose: () => void;
   onVerifySuccess: () => void;
   email?: string;
+  onVerifyCode?: (code: string) => Promise<{ success: boolean; error?: string }>;
+  onResendCode?: () => Promise<{ success: boolean; error?: string }>;
 }
 
 export function VerificationModal({
@@ -23,27 +27,83 @@ export function VerificationModal({
   onClose,
   onVerifySuccess,
   email = "alex@gmail.com",
+  onVerifyCode,
+  onResendCode,
 }: VerificationModalProps) {
   const [code, setCode] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const inputRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
     if (visible) {
       const timer = setTimeout(() => {
         setCode("");
+        setErrorMessage(null);
+        setInfoMessage(null);
+        setIsVerifying(false);
+        setIsResending(false);
         inputRef.current?.focus();
-      }, 50);
+      }, 100);
       return () => clearTimeout(timer);
     }
   }, [visible]);
 
-  const handleChangeCode = (text: string) => {
+  const handleChangeCode = async (text: string) => {
+    if (isVerifying) return;
     const cleaned = text.replace(/[^0-9]/g, "").slice(0, 6);
     setCode(cleaned);
+    setErrorMessage(null);
+    setInfoMessage(null);
+
     if (cleaned.length === 6) {
-      setTimeout(() => {
-        onVerifySuccess();
-      }, 300);
+      if (onVerifyCode) {
+        setIsVerifying(true);
+        try {
+          const res = await onVerifyCode(cleaned);
+          if (res.success) {
+            onVerifySuccess();
+          } else {
+            setErrorMessage(res.error || "Invalid verification code.");
+          }
+        } catch (err: any) {
+          setErrorMessage(err?.message || "Failed to verify code.");
+        } finally {
+          setIsVerifying(false);
+        }
+      } else {
+        setTimeout(() => {
+          onVerifySuccess();
+        }, 300);
+      }
+    }
+  };
+
+  const handleResend = async () => {
+    if (isResending || isVerifying) return;
+    if (!onResendCode) {
+      setCode("");
+      return;
+    }
+
+    setIsResending(true);
+    setErrorMessage(null);
+    setInfoMessage(null);
+    try {
+      const res = await onResendCode();
+      if (res.success) {
+        setInfoMessage("Verification code resent!");
+        setCode("");
+        inputRef.current?.focus();
+      } else {
+        setErrorMessage(res.error || "Failed to resend code.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Failed to resend code.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -53,23 +113,33 @@ export function VerificationModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      onShow={() => {
+        inputRef.current?.focus();
+      }}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <Pressable
-          onPress={onClose}
+        <View
           style={{
             flex: 1,
-            backgroundColor: "rgba(13, 19, 43, 0.45)",
             justifyContent: "center",
             alignItems: "center",
             paddingHorizontal: 24,
           }}
         >
+          {/* Backdrop (tap to close) */}
           <Pressable
-            onPress={(e) => e.stopPropagation()}
+            onPress={onClose}
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: "rgba(13, 19, 43, 0.45)" },
+            ]}
+          />
+
+          {/* Modal Content Card */}
+          <View
             className="w-full max-w-[360px] rounded-3xl bg-white p-6 shadow-xl"
             style={{
               shadowColor: "#000",
@@ -104,62 +174,96 @@ export function VerificationModal({
               . Please enter it below.
             </Text>
 
-            {/* Hidden Input for actual typing */}
-            <TextInput
-              ref={inputRef}
-              value={code}
-              onChangeText={handleChangeCode}
-              keyboardType="number-pad"
-              maxLength={6}
-              style={{
-                position: "absolute",
-                width: 1,
-                height: 1,
-                opacity: 0.01,
-              }}
-              autoFocus
-            />
+            {/* 6 Digits Boxes with Transparent TextInput overlay */}
+            <View className="relative mt-6">
+              {/* Visual Boxes (pointerEvents="none" so touches pass through to TextInput) */}
+              <View
+                pointerEvents="none"
+                className="flex-row items-center justify-between"
+              >
+                {[0, 1, 2, 3, 4, 5].map((index) => {
+                  const digit = code[index] || "";
+                  const isFocused = code.length === index && !isVerifying;
+                  return (
+                    <View
+                      key={index}
+                      className={`h-12 w-11 items-center justify-center rounded-xl border ${
+                        isFocused
+                          ? "border-primary-lingua-purple bg-[#F7F5FF]"
+                          : digit
+                          ? "border-neutral-border bg-white"
+                          : "border-neutral-border bg-neutral-surface/60"
+                      }`}
+                    >
+                      <Text className="font-poppins-bold text-lg text-neutral-text-primary">
+                        {digit}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
 
-            {/* 6 Digits Boxes UI */}
-            <Pressable
-              onPress={() => inputRef.current?.focus()}
-              className="mt-6 flex-row items-center justify-between"
-            >
-              {[0, 1, 2, 3, 4, 5].map((index) => {
-                const digit = code[index] || "";
-                const isFocused = code.length === index;
-                return (
-                  <View
-                    key={index}
-                    className={`h-12 w-11 items-center justify-center rounded-xl border ${
-                      isFocused
-                        ? "border-primary-lingua-purple bg-[#F7F5FF]"
-                        : digit
-                        ? "border-neutral-border bg-white"
-                        : "border-neutral-border bg-neutral-surface/60"
-                    }`}
-                  >
-                    <Text className="font-poppins-bold text-lg text-neutral-text-primary">
-                      {digit}
-                    </Text>
-                  </View>
-                );
-              })}
-            </Pressable>
+              {/* Real TextInput directly covering the entire boxes area */}
+              <TextInput
+                ref={inputRef}
+                value={code}
+                onChangeText={handleChangeCode}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                maxLength={6}
+                editable={!isVerifying}
+                caretHidden
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  opacity: 0,
+                }}
+              />
+            </View>
+
+            {/* Feedback messages */}
+            {isVerifying ? (
+              <View className="mt-3 flex-row items-center justify-center gap-2">
+                <ActivityIndicator size="small" color="#6C4EF5" />
+                <Text className="font-poppins text-xs text-neutral-text-secondary">
+                  Verifying code...
+                </Text>
+              </View>
+            ) : null}
+
+            {errorMessage ? (
+              <Text className="mt-3 text-center font-poppins text-xs text-semantic-error">
+                {errorMessage}
+              </Text>
+            ) : null}
+
+            {infoMessage ? (
+              <Text className="mt-3 text-center font-poppins text-xs text-semantic-success">
+                {infoMessage}
+              </Text>
+            ) : null}
 
             {/* Resend Code link */}
             <View className="mt-6 flex-row items-center justify-center gap-1">
               <Text className="font-poppins text-xs text-neutral-text-secondary">
                 {"Didn't receive the code?"}
               </Text>
-              <TouchableOpacity activeOpacity={0.7} onPress={() => setCode("")}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleResend}
+                disabled={isResending || isVerifying}
+              >
                 <Text className="font-poppins-semibold text-xs text-primary-lingua-purple">
-                  Resend Code
+                  {isResending ? "Resending..." : "Resend Code"}
                 </Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );

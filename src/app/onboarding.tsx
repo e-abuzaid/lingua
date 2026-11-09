@@ -1,9 +1,20 @@
 import { images } from "@/constants/images";
-import { router } from "expo-router";
+import { useAuth } from "@clerk/expo";
+import { Redirect, router } from "expo-router";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function OnboardingScreen() {
+  const { isLoaded, isSignedIn } = useAuth();
+
+  if (!isLoaded) {
+    return null;
+  }
+
+  if (isSignedIn) {
+    return <Redirect href="/" />;
+  }
+
   const handleGetStarted = () => {
     router.push("/(auth)/sign-up");
   };

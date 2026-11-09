@@ -1,8 +1,11 @@
 import { VerificationModal } from "@/components/VerificationModal";
 import { images } from "@/constants/images";
-import { router } from "expo-router";
+import { useAuth, useSignUp, useSSO } from "@clerk/expo";
+import { Redirect, router } from "expo-router";
 import { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -15,18 +18,161 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SignUpScreen() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { signUp } = useSignUp();
+  const { startSSOFlow } = useSSO();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isVerificationVisible, setIsVerificationVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
 
-  const handleSignUp = () => {
-    setIsVerificationVisible(true);
+  if (!isLoaded) {
+    return null;
+  }
+
+  if (isSignedIn) {
+    return <Redirect href="/" />;
+  }
+
+  const handleSignUp = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert("Required Fields", "Please enter your email and password.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await signUp.password({
+        emailAddress: email.trim(),
+        password,
+      });
+
+      if (error) {
+        Alert.alert(
+          "Sign Up Failed",
+          error.longMessage ||
+            error.message ||
+            "Unable to create account. Please try again."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const { error: sendError } = await signUp.verifications.sendEmailCode();
+      if (sendError) {
+        Alert.alert(
+          "Verification Error",
+          sendError.longMessage ||
+            sendError.message ||
+            "Unable to send verification code."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(false);
+      setIsVerificationVisible(true);
+    } catch (err: any) {
+      setIsLoading(false);
+      Alert.alert(
+        "Sign Up Error",
+        err?.message || "An unexpected error occurred during sign up."
+      );
+    }
+  };
+
+  const handleVerifyCode = async (code: string) => {
+    try {
+      const { error } = await signUp.verifications.verifyEmailCode({ code });
+      if (error) {
+        return {
+          success: false,
+          error:
+            error.longMessage ||
+            error.message ||
+            "Invalid verification code.",
+        };
+      }
+
+      const { error: finalizeError } = await signUp.finalize();
+      if (finalizeError) {
+        return {
+          success: false,
+          error:
+            finalizeError.longMessage ||
+            finalizeError.message ||
+            "Failed to complete sign up.",
+        };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Verification failed.",
+      };
+    }
+  };
+
+  const handleResendCode = async () => {
+    try {
+      const { error } = await signUp.verifications.sendEmailCode();
+      if (error) {
+        return {
+          success: false,
+          error:
+            error.longMessage ||
+            error.message ||
+            "Failed to resend code.",
+        };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Failed to resend code.",
+      };
+    }
   };
 
   const handleVerifySuccess = () => {
     setIsVerificationVisible(false);
     router.replace("/");
+  };
+
+  const handleSocialAuth = async (
+    strategy: "oauth_google" | "oauth_facebook" | "oauth_apple"
+  ) => {
+    if (socialLoading || isLoading) return;
+    setSocialLoading(strategy);
+    try {
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy,
+      });
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+        router.replace("/");
+      }
+    } catch (err: any) {
+      if (
+        err?.code === "SIGN_IN_CANCELLED" ||
+        err?.message?.includes("cancelled") ||
+        err?.message?.includes("dismissed")
+      ) {
+        // User cancelled the auth session; no alert needed
+        return;
+      }
+      Alert.alert(
+        "Social Sign In",
+        err?.message || "Failed to sign in with social provider."
+      );
+    } finally {
+      setSocialLoading(null);
+    }
   };
 
   return (
@@ -102,6 +248,7 @@ export default function SignUpScreen() {
                   className="font-poppins-medium text-base text-neutral-text-primary pt-0.5 pb-0"
                   placeholder="Enter your email"
                   placeholderTextColor="#9CA3AF"
+                  editable={!isLoading}
                 />
               </View>
 
@@ -118,6 +265,7 @@ export default function SignUpScreen() {
                     className="font-poppins-medium text-base text-neutral-text-primary pt-0.5 pb-0"
                     placeholder="Enter your password"
                     placeholderTextColor="#9CA3AF"
+                    editable={!isLoading}
                   />
                 </View>
                 <TouchableOpacity
@@ -136,6 +284,7 @@ export default function SignUpScreen() {
             <TouchableOpacity
               onPress={handleSignUp}
               activeOpacity={0.88}
+              disabled={isLoading}
               className="mt-5 w-full items-center justify-center rounded-2xl bg-primary-lingua-purple py-4 shadow-md"
               style={{
                 shadowColor: "#6C4EF5",
@@ -143,11 +292,16 @@ export default function SignUpScreen() {
                 shadowOpacity: 0.25,
                 shadowRadius: 8,
                 elevation: 3,
+                opacity: isLoading ? 0.7 : 1,
               }}
             >
-              <Text className="font-poppins-semibold text-lg text-white">
-                Sign Up
-              </Text>
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text className="font-poppins-semibold text-lg text-white">
+                  Sign Up
+                </Text>
+              )}
             </TouchableOpacity>
 
             {/* Divider "or continue with" */}
@@ -164,42 +318,69 @@ export default function SignUpScreen() {
               {/* Google */}
               <TouchableOpacity
                 activeOpacity={0.8}
+                onPress={() => handleSocialAuth("oauth_google")}
+                disabled={Boolean(socialLoading) || isLoading}
                 className="w-full flex-row items-center justify-center rounded-2xl border border-neutral-border bg-white py-3.5 px-4"
               >
-                <View className="mr-3 h-5 w-5 items-center justify-center rounded-full">
-                  <Text className="text-base font-bold text-[#EA4335]">G</Text>
-                </View>
-                <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
-                  Continue with Google
-                </Text>
+                {socialLoading === "oauth_google" ? (
+                  <ActivityIndicator size="small" color="#6C4EF5" />
+                ) : (
+                  <>
+                    <View className="mr-3 h-5 w-5 items-center justify-center rounded-full">
+                      <Text className="text-base font-bold text-[#EA4335]">G</Text>
+                    </View>
+                    <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
+                      Continue with Google
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               {/* Facebook */}
               <TouchableOpacity
                 activeOpacity={0.8}
+                onPress={() => handleSocialAuth("oauth_facebook")}
+                disabled={Boolean(socialLoading) || isLoading}
                 className="w-full flex-row items-center justify-center rounded-2xl border border-neutral-border bg-white py-3.5 px-4"
               >
-                <View className="mr-3 h-5 w-5 items-center justify-center rounded-full bg-[#1877F2]">
-                  <Text className="text-xs font-bold text-white">f</Text>
-                </View>
-                <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
-                  Continue with Facebook
-                </Text>
+                {socialLoading === "oauth_facebook" ? (
+                  <ActivityIndicator size="small" color="#6C4EF5" />
+                ) : (
+                  <>
+                    <View className="mr-3 h-5 w-5 items-center justify-center rounded-full bg-[#1877F2]">
+                      <Text className="text-xs font-bold text-white">f</Text>
+                    </View>
+                    <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
+                      Continue with Facebook
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               {/* Apple */}
               <TouchableOpacity
                 activeOpacity={0.8}
+                onPress={() => handleSocialAuth("oauth_apple")}
+                disabled={Boolean(socialLoading) || isLoading}
                 className="w-full flex-row items-center justify-center rounded-2xl border border-neutral-border bg-white py-3.5 px-4"
               >
-                <View className="mr-3 h-5 w-5 items-center justify-center">
-                  <Text className="text-base text-black"></Text>
-                </View>
-                <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
-                  Continue with Apple
-                </Text>
+                {socialLoading === "oauth_apple" ? (
+                  <ActivityIndicator size="small" color="#6C4EF5" />
+                ) : (
+                  <>
+                    <View className="mr-3 h-5 w-5 items-center justify-center">
+                      <Text className="text-base text-black"></Text>
+                    </View>
+                    <Text className="font-poppins-medium text-[15px] text-neutral-text-primary">
+                      Continue with Apple
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
+
+            {/* Captcha container required for Clerk bot protection */}
+            <View nativeID="clerk-captcha" />
           </View>
 
           {/* Bottom Switcher: Already have an account? Log in */}
@@ -225,6 +406,8 @@ export default function SignUpScreen() {
         onClose={() => setIsVerificationVisible(false)}
         onVerifySuccess={handleVerifySuccess}
         email={email}
+        onVerifyCode={handleVerifyCode}
+        onResendCode={handleResendCode}
       />
     </SafeAreaView>
   );

@@ -1,9 +1,38 @@
 import { images } from "@/constants/images";
-import { Link } from "expo-router";
-import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "@clerk/expo";
+import { Link, Redirect } from "expo-router";
+import {
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Index() {
+  const { isLoaded, isSignedIn, signOut } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <SafeAreaView
+        style={{
+          flex: 1,
+          backgroundColor: "#FFFFFF",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <ActivityIndicator size="large" color="#6C4EF5" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <Redirect href="/onboarding" />;
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       <ScrollView contentContainerStyle={{ padding: 24, gap: 24 }}>
@@ -90,6 +119,27 @@ export default function Index() {
               />
             </TouchableOpacity>
           </Link>
+
+          {/* Sign Out Button */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => signOut()}
+            className="flex-row items-center justify-between rounded-2xl border border-semantic-error/30 bg-semantic-error/10 px-5 py-4"
+          >
+            <Text className="font-poppins-semibold text-base text-semantic-error">
+              Sign Out
+            </Text>
+            <View
+              style={{
+                width: 8,
+                height: 8,
+                borderTopWidth: 2,
+                borderRightWidth: 2,
+                borderColor: "#FF4D4F",
+                transform: [{ rotate: "45deg" }],
+              }}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Typography Preview */}
