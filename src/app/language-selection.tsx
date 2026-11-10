@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { images } from "@/constants/images";
+import { posthogLog } from "@/lib/posthog-log";
+import { posthog } from "@/lib/posthog";
 import {
   DEFAULT_LANGUAGE,
   SUPPORTED_LANGUAGES,
@@ -59,6 +61,12 @@ export default function LanguageSelectionScreen() {
 
   const handleConfirm = () => {
     setSelectedLanguage(selectedLanguageId);
+    posthog?.capture("language_selected", {
+      language_id: selectedLanguageId,
+    });
+    posthogLog.info("language selection confirmed", {
+      language_id: selectedLanguageId,
+    });
     router.replace("/");
   };
 

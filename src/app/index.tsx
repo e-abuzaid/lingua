@@ -1,4 +1,5 @@
 import { images } from "@/constants/images";
+import { posthog } from "@/lib/posthog";
 import { useLanguageStore } from "@/store/languageStore";
 import { useAuth } from "@clerk/expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -27,6 +28,11 @@ export default function Index() {
   const handleClearStorage = async () => {
     await AsyncStorage.clear();
     clearSelectedLanguage();
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    posthog?.reset();
   };
 
   if (!isLoaded || (isSignedIn && !hasHydrated)) {
@@ -205,7 +211,7 @@ export default function Index() {
           {/* Sign Out Button */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => signOut()}
+            onPress={handleSignOut}
             className="flex-row items-center justify-between rounded-2xl border border-semantic-error/30 bg-semantic-error/10 px-5 py-4"
           >
             <Text className="font-poppins-semibold text-base text-semantic-error">

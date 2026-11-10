@@ -1,4 +1,6 @@
 import { images } from "@/constants/images";
+import { posthogLog } from "@/lib/posthog-log";
+import { posthog } from "@/lib/posthog";
 import { useAuth } from "@clerk/expo";
 import { Redirect, router } from "expo-router";
 import { Image, Text, TouchableOpacity, View } from "react-native";
@@ -16,6 +18,8 @@ export default function OnboardingScreen() {
   }
 
   const handleGetStarted = () => {
+    posthog?.capture("onboarding_started");
+    posthogLog.info("onboarding started", { flow: "onboarding" });
     router.push("/(auth)/sign-up");
   };
 
