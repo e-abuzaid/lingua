@@ -18,11 +18,16 @@ import {
   getPopularLanguages,
 } from "@/data/languages";
 import { LanguageCard } from "@/components/LanguageCard";
+import { useLanguageStore } from "@/store/languageStore";
 import { Language } from "@/types/learning";
 
 export default function LanguageSelectionScreen() {
+  const storedLanguageId = useLanguageStore((state) => state.selectedLanguageId);
+  const setSelectedLanguage = useLanguageStore(
+    (state) => state.setSelectedLanguage
+  );
   const [selectedLanguageId, setSelectedLanguageId] = useState<string>(
-    DEFAULT_LANGUAGE.id
+    storedLanguageId ?? DEFAULT_LANGUAGE.id
   );
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -53,11 +58,8 @@ export default function LanguageSelectionScreen() {
   };
 
   const handleConfirm = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/");
-    }
+    setSelectedLanguage(selectedLanguageId);
+    router.replace("/");
   };
 
   const isSearching = searchQuery.trim().length > 0;

@@ -11,6 +11,10 @@ import palace from "@/assets/images/palace.png";
 import streakFire from "@/assets/images/streak-fire.png";
 import treasure from "@/assets/images/treasure.png";
 
+const aiTeacherAvatar = {
+  uri: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80",
+};
+
 export const images = {
   androidIconBackground,
   androidIconForeground,
@@ -24,6 +28,7 @@ export const images = {
   palace,
   streakFire,
   treasure,
+  aiTeacherAvatar,
 } as const;
 
 export type Images = typeof images;
