@@ -1,6 +1,7 @@
+import { EXTRA_LESSONS } from "@/data/extraLessons";
 import { Lesson } from "@/types/learning";
 
-export const LESSONS: Lesson[] = [
+const BASE_LESSONS: Lesson[] = [
   // ==========================================
   // SPANISH - UNIT 3 (Featured in App Screens)
   // ==========================================
@@ -1075,6 +1076,8 @@ export const LESSONS: Lesson[] = [
     },
   },
 ];
+
+export const LESSONS: Lesson[] = [...BASE_LESSONS, ...EXTRA_LESSONS];
 
 // ==========================================
 // HELPER QUERY FUNCTIONS
