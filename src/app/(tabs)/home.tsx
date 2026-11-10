@@ -1,16 +1,3 @@
-import { useUser } from "@clerk/expo";
-import { Image as ExpoImage } from "expo-image";
-import { router } from "expo-router";
-import React, { useMemo } from "react";
-import {
-  Image as RNImage,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { CircularFlag } from "@/components/LanguageCard";
 import { TodayPlanRow } from "@/components/TodayPlanRow";
 import { images } from "@/constants/images";
@@ -24,8 +11,23 @@ import {
   getLessonsByUnit,
 } from "@/data/lessons";
 import { getDefaultUnitForLanguage } from "@/data/units";
+import { posthog } from "@/lib/posthog";
+import { posthogLog } from "@/lib/posthog-log";
 import { useLanguageStore } from "@/store/languageStore";
 import { TodayPlanItem } from "@/types/learning";
+import { useUser } from "@clerk/expo";
+import { Image as ExpoImage } from "expo-image";
+import { router } from "expo-router";
+import { useMemo } from "react";
+import {
+  Image as RNImage,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const BASE64_CHARS =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -157,11 +159,22 @@ export default function HomeScreen() {
   }, [currentLesson, dailyXp, unitLessons]);
 
   const handlePlanItemPress = (item: TodayPlanItem) => {
-    if (item.type === "ai_conversation" || item.type === "video_call") {
-      router.push("/(tabs)/ai-teacher");
-      return;
-    }
-    router.push("/(tabs)/learn");
+    const destination =
+      item.type === "ai_conversation" || item.type === "video_call"
+        ? "ai_teacher"
+        : "learn";
+
+    posthog?.capture("learning_destination_selected", {
+      plan_item_type: item.type,
+      lesson_id: item.lessonId,
+      destination,
+    });
+    posthogLog.info("learning destination selected", {
+      plan_item_type: item.type,
+      lesson_id: item.lessonId,
+      destination,
+    });
+    router.push(destination === "ai_teacher" ? "/(tabs)/ai-teacher" : "/(tabs)/learn");
   };
 
   return (

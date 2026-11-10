@@ -1,5 +1,6 @@
 import { VerificationModal } from "@/components/VerificationModal";
 import { images } from "@/constants/images";
+import { posthog } from "@/lib/posthog";
 import { useAuth, useSignUp, useSSO } from "@clerk/expo";
 import { Redirect, router } from "expo-router";
 import { useState } from "react";
@@ -108,6 +109,9 @@ export default function SignUpScreen() {
         };
       }
 
+      posthog?.capture("sign_up_completed", {
+        authentication_method: "email_code",
+      });
       return { success: true };
     } catch (err: any) {
       return {
@@ -155,6 +159,9 @@ export default function SignUpScreen() {
 
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
+        posthog?.capture("sign_up_completed", {
+          authentication_method: strategy.replace("oauth_", ""),
+        });
         router.replace("/");
       }
     } catch (err: any) {
