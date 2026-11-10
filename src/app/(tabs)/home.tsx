@@ -174,7 +174,14 @@ export default function HomeScreen() {
       lesson_id: item.lessonId,
       destination,
     });
-    router.push(destination === "ai_teacher" ? "/(tabs)/ai-teacher" : "/(tabs)/learn");
+    if (destination === "ai_teacher") {
+      router.push({
+        pathname: "/(tabs)/ai-teacher",
+        params: item.lessonId ? { lessonId: item.lessonId } : undefined,
+      });
+    } else {
+      router.push("/(tabs)/learn");
+    }
   };
 
   return (
@@ -337,7 +344,12 @@ export default function HomeScreen() {
         {/* Next Up: AI Video Call Card */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => router.push("/(tabs)/ai-teacher")}
+          onPress={() =>
+            router.push({
+              pathname: "/(tabs)/ai-teacher",
+              params: currentLesson ? { lessonId: currentLesson.id } : undefined,
+            })
+          }
           className="mt-6 flex-row items-center justify-between rounded-[24px] bg-[#F1F6EC] px-5 py-3.5"
         >
           <View className="flex-1 pr-3">
